@@ -37,10 +37,13 @@ class Client(object):
         self.path = path
         self.client_id = client_id
         self.permalink = permalink
+        self.timeout = 60
+        self.session = requests.Session()
+        self.session.mount("https://", requests.adapters.HTTPAdapter(max_retries=1))
         self.user_id = self._get_user_id()
 
     def _get_user_id(self):
-        response = requests.get("%s/%s" % (base_url, self.permalink))
+        response = self.session.get("%s/%s" % (base_url, self.permalink), timeout=self.timeout)
         response.raise_for_status()
         last_script = None
         for match in re.finditer(r"<script[^>]*>(.+?)</script>", response.content):
@@ -58,7 +61,7 @@ class Client(object):
                 "offset": offset,
                 "linked_partitioning": 1,
             }
-            response = requests.get(url, params=params)
+            response = self.session.get(url, params=params, timeout=self.timeout)
             response.raise_for_status()
             data = response.json()
             for track in data['collection']:
@@ -94,7 +97,7 @@ class Client(object):
     def download_file(self, url, filepath):
         with open(filepath, 'wb') as f:
             start = time.time()
-            response = requests.get(url, stream=True)
+            response = self.session.get(url, stream=True, timeout=self.timeout)
             response.raise_for_status()
             total_size = int(response.headers.get('content-length'))
             dl = 0
