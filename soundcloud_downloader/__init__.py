@@ -98,7 +98,7 @@ class Client(object):
             response.raise_for_status()
             total_size = int(response.headers.get('content-length'))
             dl = 0
-            for chunk in response.iter_content(4096):
+            for chunk in response.iter_content(8192):
                 dl += len(chunk)
                 f.write(chunk)
                 done = int(50 * dl / total_size)
