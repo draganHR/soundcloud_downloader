@@ -105,6 +105,7 @@ class Client(object):
                 sys.stdout.write("\r[%s%s] %s kbps" % ('=' * done,
                                                        ' ' * (50-done),
                                                        dl // 1024 // (time.time() - start)))
+            sys.stdout.write("\r")  # Clean progress line
         logger.debug("Download done: %s", time.time() - start)
 
     @staticmethod
