@@ -53,7 +53,9 @@ class Client(object):
     def get_tracks(self):
         url = "%s/users/%s/tracks" % (api_url, self.user_id)
         offset = 0
+        track_count = 0
         while offset is not None:
+            logger.debug('Fetching track list, offset: %s', offset)
             params = {
                 "client_id": self.client_id,
                 "representation": "",
@@ -64,12 +66,14 @@ class Client(object):
             response = self.session.get(url, params=params, timeout=self.timeout)
             response.raise_for_status()
             data = response.json()
+            track_count += len(data['collection'])
             for track in data['collection']:
                 self.get_track(track)
             if data['next_href']:
                 offset = track['id']
             else:
                 offset = None
+        logger.info('Done! Total tracks: %s', track_count)
 
     def get_track(self, track):
         track_id = int(track['id'])
