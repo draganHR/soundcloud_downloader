@@ -122,6 +122,22 @@ class Client(object):
         return filename
 
 
+def generate_playlist(path):
+    filename = "!Playlist.pls"
+    logger.debug("Generating playlist: %s", filename)
+    playlist = []
+    for entry in os.listdir(path):
+        if entry.endswith(".mp3"):
+            playlist.append(entry)
+    playlist.sort()
+
+    with open(os.path.join(path, filename), "w") as f:
+        f.write("[playlist]\n")
+        for i, entry in enumerate(playlist, 1):
+            f.write("File%d=%s\n" % (i, entry))
+    logger.info('Done! Total playlist entries: %s', len(playlist))
+
+
 def setup_logging(verbose):
     if verbose > 3:
         level = logging.DEBUG
@@ -160,6 +176,7 @@ def main():
     client_id = settings['main']['client_id']
     c = Client(client_id=client_id, permalink=permalink, path=path)
     c.get_tracks()
+    generate_playlist(path)
 
 
 if __name__ == "__main__":
