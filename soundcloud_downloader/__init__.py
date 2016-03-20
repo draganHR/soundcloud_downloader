@@ -31,6 +31,18 @@ def load_settings(filename):
     return getattr(config, '_sections')
 
 
+class TrackError(Exception):
+    pass
+
+
+class TrackExists(TrackError):
+    pass
+
+
+class TrackWithDifferentSizeExists(TrackError):
+    pass
+
+
 class Client(object):
 
     def __init__(self, client_id, permalink, path):
@@ -50,7 +62,7 @@ class Client(object):
             last_script = match.group(1)
         return int(re.search(r"soundcloud:users:(\d+)", last_script).group(1))
 
-    def get_tracks(self):
+    def get_tracks(self, latest=False):
         url = "%s/users/%s/tracks" % (api_url, self.user_id)
         offset = 0
         track_count = 0
@@ -68,7 +80,14 @@ class Client(object):
             data = response.json()
             track_count += len(data['collection'])
             for track in data['collection']:
-                self.get_track(track)
+                try:
+                    self.get_track(track)
+                except TrackExists:
+                    if latest:
+                        logger.info('Done! Downloaded all latest tracks!')
+                        return
+                except TrackError, e:
+                    logger.warning(e)
             if data['next_href']:
                 offset = track['id']
             else:
@@ -81,29 +100,29 @@ class Client(object):
         title = self.sanitize_filename(track['title'])
         filename = "[%s] %s [%d].mp3" % (release_date.strftime('%Y-%m-%d'), title, track_id)
         filepath = os.path.join(self.path, filename)
-        if os.path.isfile(filepath):
-            logger.debug('Skipping "%s"', filename)
-            if os.path.getsize(filepath) != track['original_content_size']:
-                logger.warning('Unexpected file size for file "%s" (expecting %s)',
-                               filename, track['original_content_size'])
-            return
 
         logger.info('Downloading "%s"', filename)
-        temp_filepath = os.path.join(self.path, "!track-%d.tmp" % track_id)
         url = track['download_url'] + "?" + urllib.urlencode({"client_id": self.client_id})
-        self.download_file(url, temp_filepath)
 
-        os.rename(temp_filepath, filepath)
-        if os.path.getsize(filepath) != track['original_content_size']:
-            logger.warning('Unexpected file size for file "%s" (expecting %s)',
-                           filename, track['original_content_size'])
+        # get headers
+        start = time.time()
+        response = self.session.get(url, stream=True, timeout=self.timeout)
+        response.raise_for_status()
+        total_size = int(response.headers.get('content-length'))
 
-    def download_file(self, url, filepath):
-        with open(filepath, 'wb') as f:
-            start = time.time()
-            response = self.session.get(url, stream=True, timeout=self.timeout)
-            response.raise_for_status()
-            total_size = int(response.headers.get('content-length'))
+        # if file exists, check size
+        if os.path.isfile(filepath):
+            logger.debug('Skipping "%s"', filename)
+            response.close()
+            if os.path.getsize(filepath) != total_size:
+                raise TrackWithDifferentSizeExists('Unexpected file size for file "%s" (expecting %s)' %
+                                                   (filename, total_size))
+            else:
+                raise TrackExists('Track "%s" already exists' % (filename,))
+
+        # download file
+        temp_filepath = os.path.join(self.path, "!track-%d.tmp" % track_id)
+        with open(temp_filepath, 'wb') as f:
             dl = 0
             for chunk in response.iter_content(8192):
                 dl += len(chunk)
@@ -114,6 +133,11 @@ class Client(object):
                                                        dl // 1024 // (time.time() - start)))
             sys.stdout.write("\r")  # Clean progress line
         logger.debug("Download done: %s", time.time() - start)
+
+        os.rename(temp_filepath, filepath)
+        if os.path.getsize(filepath) != total_size:
+            raise TrackError('Unexpected file size for file "%s" (expecting %s)' %
+                             (filename, total_size))
 
     @staticmethod
     def sanitize_filename(value):
@@ -154,6 +178,8 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter,
                                      description=__doc__)
     parser.add_argument('path', type=str)
+    parser.add_argument('-l', '--latest', dest='latest', action='store_true',
+                        help='Download only latest tracks')
     parser.add_argument('-w', '--no-warnings', dest='no_warnings', action='store_true',
                         help='Disable connection warnings')
     parser.add_argument('--verbose', '-v', action='count')
@@ -175,7 +201,7 @@ def main():
     permalink = settings['main']['permalink']
     client_id = settings['main']['client_id']
     c = Client(client_id=client_id, permalink=permalink, path=path)
-    c.get_tracks()
+    c.get_tracks(latest=args.latest)
     generate_playlist(path)
 
 
