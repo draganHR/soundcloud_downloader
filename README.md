@@ -1,3 +1,6 @@
+## Description
+
+Download soundcloud tracks to directory
 
 ## Configuration
 
@@ -12,4 +15,4 @@ Example:
 Run soundcloud-downloader command:
 
     cd ~/example/
-    soundcloud-downloader .
+    soundcloud-downloader . --latest
