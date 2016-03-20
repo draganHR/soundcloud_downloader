@@ -84,7 +84,7 @@ class Client(object):
                     self.get_track(track)
                 except TrackExists:
                     if latest:
-                        logger.info('Done! Downloaded all latest tracks!')
+                        logger.info('Downloaded all latest tracks!')
                         return
                 except TrackError, e:
                     logger.warning(e)
@@ -92,7 +92,7 @@ class Client(object):
                 offset = track['id']
             else:
                 offset = None
-        logger.info('Done! Total tracks: %s', track_count)
+        logger.info('Total tracks: %s', track_count)
 
     def get_track(self, track):
         track_id = int(track['id'])
